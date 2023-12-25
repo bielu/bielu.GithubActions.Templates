@@ -1,16 +1,7 @@
 name: Build documentation
 
 on:
-# If specified, the workflow will be triggered automatically once you push to the `main` branch.
-# Replace `main` with your branch’s name
-on:
-  push:
-    branches: [ $default-branch ]
-  pull_request:
-    branches: [ $default-branch ]
-
-# Specify to run a workflow manually from the Actions tab on GitHub
-    workflow_dispatch:
+  workflow_call:
 
 env:
     # Name of module and id separated by a slash
