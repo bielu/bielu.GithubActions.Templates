@@ -32,7 +32,7 @@ jobs:
               working-directory: src
             
             - name: Generate Schema
-              run: dotnet ./SchemaGenerator/bin/release/net6.0/SchemaGenerator.dll
+              run: dotnet run --project ./SchemaGenerator/SchemaGenerator.csproj
               working-directory: src
 
             - name: Build Writerside docs using Docker
