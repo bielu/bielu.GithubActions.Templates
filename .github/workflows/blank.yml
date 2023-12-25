@@ -17,6 +17,6 @@ on:
 jobs:
       # Runs a single command using the runners shell
   build:
-    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackage@main
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackage.yml@main
   GenerateDocs:
-    uses: bielu/bielu.GithubActions.Templates/.github/workflows/GenerateDocs@main
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/GenerateDocs.yml@main
