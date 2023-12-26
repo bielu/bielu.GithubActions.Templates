@@ -26,14 +26,14 @@ jobs:
     - name: Build
       shell: pwsh
       run: |
-        [xml]$xml = Get-Content -path  "$(github.workspace)/version.props" -Raw
+        [xml]$xml = Get-Content -path  "${{github.workspace}}/version.props" -Raw
         $version = $xml.Project.PropertyGroup.VersionPrefix;
         $suffix = "${{ inputs.suffix }}";
         if(![string]::IsNullOrEmpty($suffix)){
           $ticks=(Get-Date).Ticks;
           $version= $version+"-"+$suffix+"."+$ticks
           $xml.Project.PropertyGroup.VersionSuffix = $suffix+"."+$ticks
-          [xml]$xml.Save("$(github.workspace)/version.props")
+          [xml]$xml.Save("${{github.workspace}}/version.props")
         }
     - name: Build
       run: dotnet build --no-restore
