@@ -5,10 +5,7 @@ name: .NET
 
 on:
   workflow_call:
-   inputs:
-      suffix:
-        required: false
-        type: string
+
 jobs:
   build:
 
