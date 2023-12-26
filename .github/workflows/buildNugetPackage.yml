@@ -5,7 +5,10 @@ name: .NET
 
 on:
   workflow_call:
-  
+   inputs:
+      suffix:
+        required: false
+        type: string
 jobs:
   build:
 
@@ -20,6 +23,18 @@ jobs:
     - name: Restore
       run: dotnet restore
       working-directory: src
+    - name: Build
+      shell: pwsh
+      run: |
+        [xml]$xml = Get-Content -path  "$(System.DefaultWorkingDirectory)/version.props" -Raw
+        $version = $xml.Project.PropertyGroup.VersionPrefix;
+        $suffix = "${{ inputs.suffix }}";
+        if(![string]::IsNullOrEmpty($suffix)){
+          $ticks=(Get-Date).Ticks;
+          $version= $version+"-"+$suffix+"."+$ticks
+          $xml.Project.PropertyGroup.VersionSuffix = $suffix+"."+$ticks
+          [xml]$xml.Save("$(System.DefaultWorkingDirectory)/version.props")
+        }
     - name: Build
       run: dotnet build --no-restore
       working-directory: src
