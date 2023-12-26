@@ -4,10 +4,12 @@
 name: Publish
 on:
   workflow_call:
+env:
+  NuGetDirectory: ${{ github.workspace}}/nuget
 jobs:
   Publish:
     
-    if: github.event_name == 'release'
+    if:  github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       # Download the NuGet package created in the previous job
