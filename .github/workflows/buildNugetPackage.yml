@@ -23,7 +23,7 @@ jobs:
     - name: Restore
       run: dotnet restore
       working-directory: src
-    - name: Build
+    - name: Set Version
       shell: pwsh
       run: |
         [xml]$xml = Get-Content -path  "${{github.workspace}}/version.props" -Raw
@@ -33,6 +33,7 @@ jobs:
           $ticks=(Get-Date).Ticks;
           $version= $version+"-"+$suffix+"."+$ticks
           $xml.Project.PropertyGroup.VersionSuffix = $suffix+"."+$ticks
+          Write-Host $version
           [xml]$xml.Save("${{github.workspace}}/version.props")
         }
     - name: Build
