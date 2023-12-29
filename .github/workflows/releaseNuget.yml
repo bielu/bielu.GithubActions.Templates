@@ -4,6 +4,9 @@
 name: Publish
 on:
   workflow_call:
+    secrets:
+      NUGET_APIKEY:
+        required: true
 env:
   NuGetDirectory: ${{ github.workspace}}/nuget
 jobs:
