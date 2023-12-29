@@ -14,5 +14,3 @@ jobs:
     uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackage.yml@main
     with:
       suffix: ${{inputs.suffix}}
-  GenerateDocs:
-    uses: bielu/bielu.GithubActions.Templates/.github/workflows/GenerateDocs.yml@main
