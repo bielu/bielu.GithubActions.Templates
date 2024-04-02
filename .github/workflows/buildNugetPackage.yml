@@ -44,6 +44,7 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         directories: "."
+      if: github.event_name == 'pull_request'
     - name: Test
       run: dotnet test
       working-directory: src
