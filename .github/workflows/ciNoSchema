@@ -1,0 +1,16 @@
+
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      suffix:
+        required: false
+        type: string
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+      # Runs a single command using the runners shell
+  build:
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackageNoSchema.yml@main
+    with:
+      suffix: ${{inputs.suffix}}
