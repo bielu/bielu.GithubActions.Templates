@@ -46,10 +46,29 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         directories: "."
       if: github.event_name == 'pull_request'
-    - name: Test
-      run: dotnet test
+    - name: Test run
+      run: dotnet test --configuration Release --logger trx --collect:"XPlat Code Coverage"
       working-directory: src
+    - name: ReportGenerator
+      uses: danielpalme/ReportGenerator-GitHub-Action@5.5.1
+      with:
+        reports: 'src/**/TestResults/*/coverage.cobertura.xml'  # Adjust path if needed
+        targetdir: 'coverage-report'
+        reporttypes: 'HtmlInline;MarkdownSummaryGithub'
+        verbosity: 'Info'
     
+    - name: Upload Coverage Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage-report
+    - name: Add Coverage PR Comment
+      if: github.event_name == 'pull_request'
+      run: |
+        gh pr comment $PR_NUMBER --edit-last --create-if-none --body-file coverage-report/SummaryGithub.md
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ github.event.number }}
     - name: Generate Schema
       run: dotnet run --project ./SchemaGenerator/SchemaGenerator.csproj
       working-directory: src
