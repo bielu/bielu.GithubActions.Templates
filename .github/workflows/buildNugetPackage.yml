@@ -49,21 +49,31 @@ jobs:
     - name: Test run
       run: dotnet test --configuration Release --logger trx --collect:"XPlat Code Coverage"
       working-directory: src
+    - name: Check for coverage files
+      id: check_coverage
+      run: |
+        if find . -path '*/TestResults/*/coverage.cobertura.xml' | grep -q .; then
+          echo "has_coverage=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "has_coverage=false" >> "$GITHUB_OUTPUT"
+        fi
     - name: ReportGenerator
+      if: steps.check_coverage.outputs.has_coverage == 'true'
       uses: danielpalme/ReportGenerator-GitHub-Action@5.5.1
       with:
-        reports: 'src/**/TestResults/*/coverage.cobertura.xml'  # Adjust path if needed
+        reports: 'src/**/TestResults/*/coverage.cobertura.xml'
         targetdir: 'coverage-report'
         reporttypes: 'HtmlInline;MarkdownSummaryGithub'
         verbosity: 'Info'
     
     - name: Upload Coverage Report
+      if: steps.check_coverage.outputs.has_coverage == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: coverage-report
     - name: Add Coverage PR Comment
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && steps.check_coverage.outputs.has_coverage == 'true'
       run: |
         gh pr comment $PR_NUMBER --edit-last --create-if-none --body-file coverage-report/SummaryGithub.md
       env:
