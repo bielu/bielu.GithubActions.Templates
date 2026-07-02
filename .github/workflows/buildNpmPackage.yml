@@ -53,7 +53,10 @@ jobs:
       working-directory: ${{ inputs.working-directory }}
 
     - name: Pack npm package
-      run: npm pack --pack-destination ${{ github.workspace }}/build.out
+      # npm pack does not create --pack-destination, so ensure it exists first (ENOENT otherwise).
+      run: |
+        mkdir -p ${{ github.workspace }}/build.out
+        npm pack --pack-destination ${{ github.workspace }}/build.out
       working-directory: ${{ inputs.working-directory }}
 
     - name: Upload npm package as build artifact
