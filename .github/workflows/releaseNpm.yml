@@ -1,0 +1,57 @@
+# This workflow will publish an npm package
+# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
+
+name: Publish npm
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+      registry-url:
+        required: false
+        type: string
+        default: 'https://registry.npmjs.org'
+      access:
+        required: false
+        type: string
+        default: 'public'
+    secrets:
+      NPM_TOKEN:
+        required: true
+env:
+  NpmDirectory: ${{ github.workspace }}/npm
+jobs:
+  Publish:
+
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # Download the npm package (.tgz) created by the build job
+      - uses: actions/download-artifact@v4
+        with:
+          name: Npm Build Output
+          path: ${{ env.NpmDirectory }}
+
+      # Install the requested Node.js version and configure the registry.
+      # setup-node writes the token to .npmrc via the NODE_AUTH_TOKEN env var.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: ${{ inputs.registry-url }}
+
+      # Publish every packed tarball to the npm registry.
+      # npm publish is idempotent per version; re-running a published version fails,
+      # so use force-free retries by only publishing new versions.
+      - name: Publish npm package
+        shell: bash
+        run: |
+          for package in "${NpmDirectory}"/*.tgz; do
+            echo "Publishing ${package}"
+            npm publish "${package}" --access ${{ inputs.access }}
+          done
+        env:
+          NpmDirectory: ${{ env.NpmDirectory }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

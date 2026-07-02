@@ -1,0 +1,56 @@
+# Combined CI workflow: builds (but does not publish) a NuGet package and an
+# npm package from the same repository. Meant for PR / branch validation, the
+# counterpart to release.yml.
+
+name: CI (NuGet + npm)
+
+on:
+  workflow_call:
+    inputs:
+      suffix:
+        required: false
+        type: string
+      build-nuget:
+        description: 'Build the NuGet package.'
+        required: false
+        type: boolean
+        default: true
+      generate-schema:
+        description: 'Use the schema-generating NuGet build instead of the plain one.'
+        required: false
+        type: boolean
+        default: true
+      build-npm:
+        description: 'Build the npm package.'
+        required: false
+        type: boolean
+        default: true
+      working-directory:
+        required: false
+        type: string
+        default: '.'
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+
+jobs:
+  build-nuget-schema:
+    if: inputs.build-nuget && inputs.generate-schema
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackage.yml@main
+    with:
+      suffix: ${{ inputs.suffix }}
+
+  build-nuget-noschema:
+    if: inputs.build-nuget && !inputs.generate-schema
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackageNoSchema.yml@main
+    with:
+      suffix: ${{ inputs.suffix }}
+
+  build-npm:
+    if: inputs.build-npm
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNpmPackage.yml@main
+    with:
+      working-directory: ${{ inputs.working-directory }}
+      node-version: ${{ inputs.node-version }}
+      suffix: ${{ inputs.suffix }}

@@ -1,0 +1,99 @@
+# Combined release workflow: builds and publishes a NuGet package and an npm
+# package from the same repository in a single reusable workflow call.
+#
+# A consumer only has to reference this one file to ship both ecosystems.
+# Each half can be toggled off, so repos that only ship one package still work.
+
+name: Release (NuGet + npm)
+
+on:
+  workflow_call:
+    inputs:
+      # ---- shared ----
+      suffix:
+        description: 'Prerelease suffix (empty for a stable release).'
+        required: false
+        type: string
+      # ---- NuGet ----
+      publish-nuget:
+        description: 'Build and publish the NuGet package.'
+        required: false
+        type: boolean
+        default: true
+      generate-schema:
+        description: 'Use the schema-generating NuGet build (buildNugetPackage) instead of the plain one (buildNugetPackageNoSchema).'
+        required: false
+        type: boolean
+        default: true
+      # ---- npm ----
+      publish-npm:
+        description: 'Build and publish the npm package.'
+        required: false
+        type: boolean
+        default: true
+      working-directory:
+        description: 'npm package directory.'
+        required: false
+        type: string
+        default: '.'
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+      registry-url:
+        required: false
+        type: string
+        default: 'https://registry.npmjs.org'
+      access:
+        required: false
+        type: string
+        default: 'public'
+    secrets:
+      NUGET_APIKEY:
+        required: false
+      NPM_TOKEN:
+        required: false
+
+jobs:
+  # ---- NuGet ----
+  build-nuget-schema:
+    if: inputs.publish-nuget && inputs.generate-schema
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackage.yml@main
+    with:
+      suffix: ${{ inputs.suffix }}
+
+  build-nuget-noschema:
+    if: inputs.publish-nuget && !inputs.generate-schema
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackageNoSchema.yml@main
+    with:
+      suffix: ${{ inputs.suffix }}
+
+  publish-nuget:
+    needs: [build-nuget-schema, build-nuget-noschema]
+    # Run once whichever NuGet build variant succeeded; never on a PR.
+    if: >-
+      always() && !cancelled() && inputs.publish-nuget
+      && (needs.build-nuget-schema.result == 'success' || needs.build-nuget-noschema.result == 'success')
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/releaseNuget.yml@main
+    secrets:
+      NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
+
+  # ---- npm ----
+  build-npm:
+    if: inputs.publish-npm
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNpmPackage.yml@main
+    with:
+      working-directory: ${{ inputs.working-directory }}
+      node-version: ${{ inputs.node-version }}
+      suffix: ${{ inputs.suffix }}
+
+  publish-npm:
+    needs: [build-npm]
+    if: always() && !cancelled() && inputs.publish-npm && needs.build-npm.result == 'success'
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/releaseNpm.yml@main
+    with:
+      node-version: ${{ inputs.node-version }}
+      registry-url: ${{ inputs.registry-url }}
+      access: ${{ inputs.access }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

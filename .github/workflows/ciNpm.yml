@@ -1,0 +1,26 @@
+
+name: CI npm
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: false
+        type: string
+        default: '.'
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+      suffix:
+        required: false
+        type: string
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+      # Runs a single command using the runners shell
+  build:
+    uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNpmPackage.yml@main
+    with:
+      working-directory: ${{ inputs.working-directory }}
+      node-version: ${{ inputs.node-version }}
+      suffix: ${{ inputs.suffix }}

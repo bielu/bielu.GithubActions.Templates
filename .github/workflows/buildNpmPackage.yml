@@ -1,0 +1,63 @@
+# This workflow will build and test a Node.js / npm package
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: npm
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: false
+        type: string
+        default: '.'
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+      suffix:
+        required: false
+        type: string
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Install dependencies
+      run: npm ci
+      working-directory: ${{ inputs.working-directory }}
+    - name: Set prerelease version
+      shell: pwsh
+      run: |
+        $suffix = "${{ inputs.suffix }}";
+        if(![string]::IsNullOrEmpty($suffix)){
+          $ticks=(Get-Date).Ticks;
+          $preid = $suffix + "." + $ticks
+          Write-Host "Applying prerelease id: $preid"
+          npm version prerelease --preid=$preid --no-git-tag-version
+        }
+      working-directory: ${{ inputs.working-directory }}
+    - name: Lint
+      run: npm run lint --if-present
+      working-directory: ${{ inputs.working-directory }}
+    - name: Build
+      run: npm run build --if-present
+      working-directory: ${{ inputs.working-directory }}
+    - name: Test
+      run: npm test --if-present
+      working-directory: ${{ inputs.working-directory }}
+
+    - name: Pack npm package
+      run: npm pack --pack-destination ${{ github.workspace }}/build.out
+      working-directory: ${{ inputs.working-directory }}
+
+    - name: Upload npm package as build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Npm Build Output
+        path: ./build.out/
