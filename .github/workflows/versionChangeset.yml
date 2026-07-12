@@ -1,0 +1,84 @@
+# Reusable changeset "version" workflow.
+#
+# Call this on push to your default branch. It runs the changesets action, which:
+#   * opens/updates a "Version Packages" PR while unreleased changesets exist, or
+#   * does nothing (leaving hasChangesets=false) once that PR has been merged and the changesets
+#     consumed — the caller uses that signal to cut the actual release.
+#
+# It deliberately does NOT publish. Publishing stays with the ecosystem-specific templates
+# (releaseNuget.yml / releaseNpm.yml via release.yml), so this works for NuGet, npm, or both.
+
+name: Version (changesets)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+      working-directory:
+        description: 'Directory holding the changeset workspace root (package.json + .changeset).'
+        required: false
+        type: string
+        default: '.'
+      version-command:
+        description: 'Command that runs `changeset version` plus any post-processing (e.g. writing a .NET version file).'
+        required: false
+        type: string
+        default: 'npm run version'
+      title:
+        description: 'Title for the Version Packages PR.'
+        required: false
+        type: string
+        default: 'chore: version packages'
+      commit-message:
+        description: 'Commit message for the Version Packages PR.'
+        required: false
+        type: string
+        default: 'chore: version packages'
+    outputs:
+      hasChangesets:
+        description: 'True while unreleased changesets remain (a Version PR is open); false once consumed.'
+        value: ${{ jobs.version.outputs.hasChangesets }}
+      pullRequestNumber:
+        description: 'The Version Packages PR number, when one is open.'
+        value: ${{ jobs.version.outputs.pullRequestNumber }}
+
+# The changesets action needs to push a branch and open a PR. The calling job must also grant these.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
+      pullRequestNumber: ${{ steps.changesets.outputs.pullRequestNumber }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install
+        run: npm ci
+        working-directory: ${{ inputs.working-directory }}
+
+      # Opens/updates the Version Packages PR, or exposes hasChangesets=false when there is nothing
+      # left to version. `version` runs the caller's command; no `publish` is configured here.
+      - name: Changesets version PR
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: ${{ inputs.version-command }}
+          cwd: ${{ inputs.working-directory }}
+          title: ${{ inputs.title }}
+          commit: ${{ inputs.commit-message }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

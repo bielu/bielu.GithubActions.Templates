@@ -43,14 +43,23 @@ jobs:
           registry-url: ${{ inputs.registry-url }}
 
       # Publish every packed tarball to the npm registry.
-      # npm publish is idempotent per version; re-running a published version fails,
-      # so use force-free retries by only publishing new versions.
+      # npm publish fails when the exact version already exists, so each tarball's version is
+      # checked against the registry first and skipped if present. This makes the job idempotent
+      # (safe to re-run) and lets it coexist with changeset releases, where a package's version
+      # does not necessarily change on every release.
       - name: Publish npm package
         shell: bash
         run: |
           for package in "${NpmDirectory}"/*.tgz; do
-            echo "Publishing ${package}"
-            npm publish "${package}" --access ${{ inputs.access }}
+            pj=$(tar -xzOf "${package}" package/package.json)
+            name=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0,'utf8')).name)" <<<"${pj}")
+            version=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0,'utf8')).version)" <<<"${pj}")
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "Skipping ${name}@${version} (already published)"
+            else
+              echo "Publishing ${name}@${version} (${package})"
+              npm publish "${package}" --access ${{ inputs.access }}
+            fi
           done
         env:
           NpmDirectory: ${{ env.NpmDirectory }}
