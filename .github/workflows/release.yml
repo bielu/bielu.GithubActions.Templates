@@ -52,6 +52,8 @@ on:
       NUGET_APIKEY:
         required: false
       NPM_TOKEN:
+        # Deprecated: npm publishing uses trusted publishing (OIDC) and ignores this
+        # secret. It stays declared so existing callers that still pass it do not break.
         required: false
 
 jobs:
@@ -91,9 +93,12 @@ jobs:
     needs: [build-npm]
     if: always() && !cancelled() && inputs.publish-npm && needs.build-npm.result == 'success'
     uses: bielu/bielu.GithubActions.Templates/.github/workflows/releaseNpm.yml@main
+    # npm publishes via trusted publishing (OIDC); the caller of this workflow must
+    # grant `id-token: write` on its job for the permission to reach the publish job.
+    permissions:
+      id-token: write
+      contents: read
     with:
       node-version: ${{ inputs.node-version }}
       registry-url: ${{ inputs.registry-url }}
       access: ${{ inputs.access }}
-    secrets:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
