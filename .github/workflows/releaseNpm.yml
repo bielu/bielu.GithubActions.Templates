@@ -71,6 +71,11 @@ jobs:
       # checked against the registry first and skipped if present. This makes the job idempotent
       # (safe to re-run) and lets it coexist with changeset releases, where a package's version
       # does not necessarily change on every release.
+      #
+      # npm >= 11 refuses to publish a prerelease version without an explicit --tag (so a beta
+      # can never become `latest` by accident). The dist-tag is derived from the version's first
+      # prerelease identifier (1.2.3-beta.4 publishes with --tag beta); purely numeric identifiers
+      # are not valid dist-tags and fall back to `next`. Stable versions publish as `latest`.
       - name: Publish npm package
         shell: bash
         run: |
@@ -80,10 +85,19 @@ jobs:
             version=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0,'utf8')).version)" <<<"${pj}")
             if npm view "${name}@${version}" version >/dev/null 2>&1; then
               echo "Skipping ${name}@${version} (already published)"
-            else
-              echo "Publishing ${name}@${version} (${package})"
-              npm publish "${package}" --access ${{ inputs.access }}
+              continue
             fi
+            tag_args=()
+            if [[ "${version}" == *-* ]]; then
+              prerelease="${version#*-}"
+              tag="${prerelease%%.*}"
+              if [[ -z "${tag}" || "${tag}" =~ ^[0-9]+$ ]]; then
+                tag="next"
+              fi
+              tag_args=(--tag "${tag}")
+            fi
+            echo "Publishing ${name}@${version} (${package})" "${tag_args[@]}"
+            npm publish "${package}" --access ${{ inputs.access }} "${tag_args[@]}"
           done
         env:
           NpmDirectory: ${{ env.NpmDirectory }}
