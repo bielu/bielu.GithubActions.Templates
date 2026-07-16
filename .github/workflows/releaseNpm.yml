@@ -1,6 +1,12 @@
-# This workflow will publish an npm package
-# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
-
+# This workflow will publish an npm package using npm trusted publishing (OIDC).
+# No npm token is used: the job authenticates to the registry with a GitHub OIDC
+# token, which requires the `id-token: write` permission (the CALLER job must
+# grant it too — permissions passed to a reusable workflow are capped by the caller).
+#
+# NOTE: On npmjs.com the trusted publisher of each package must be configured with
+# the CALLER repository and its top-level workflow filename (the workflow triggered
+# by push/release/workflow_dispatch), not this reusable workflow file.
+# For more information see: https://docs.npmjs.com/trusted-publishers
 name: Publish npm
 on:
   workflow_call:
@@ -19,7 +25,9 @@ on:
         default: 'public'
     secrets:
       NPM_TOKEN:
-        required: true
+        # Deprecated: publishing uses npm trusted publishing (OIDC) and ignores this
+        # secret. It stays declared so existing callers that still pass it do not break.
+        required: false
 env:
   NpmDirectory: ${{ github.workspace }}/npm
 jobs:
@@ -27,6 +35,10 @@ jobs:
 
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      # Required to mint the OIDC token npm exchanges for a publish credential.
+      id-token: write
+      contents: read
     steps:
       # Download the npm package (.tgz) created by the build job
       - uses: actions/download-artifact@v4
@@ -35,14 +47,26 @@ jobs:
           path: ${{ env.NpmDirectory }}
 
       # Install the requested Node.js version and configure the registry.
-      # setup-node writes the token to .npmrc via the NODE_AUTH_TOKEN env var.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
           registry-url: ${{ inputs.registry-url }}
 
-      # Publish every packed tarball to the npm registry.
+      # Trusted publishing needs npm >= 11.5.1, which no current LTS Node.js bundles
+      # by default. Upgrade only when the bundled npm is older than required.
+      - name: Ensure npm supports trusted publishing
+        shell: bash
+        run: |
+          required=11.5.1
+          current=$(npm --version)
+          if [ "$(printf '%s\n' "${required}" "${current}" | sort -V | head -n1)" != "${required}" ]; then
+            echo "npm ${current} is too old for trusted publishing; upgrading"
+            npm install -g "npm@>=${required}"
+          fi
+          npm --version
+
+      # Publish every packed tarball to the npm registry via trusted publishing.
       # npm publish fails when the exact version already exists, so each tarball's version is
       # checked against the registry first and skipped if present. This makes the job idempotent
       # (safe to re-run) and lets it coexist with changeset releases, where a package's version
@@ -63,4 +87,3 @@ jobs:
           done
         env:
           NpmDirectory: ${{ env.NpmDirectory }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
