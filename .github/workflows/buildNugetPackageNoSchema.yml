@@ -9,10 +9,17 @@ on:
       suffix:
         required: false
         type: string
+    outputs:
+      version:
+        description: 'The full NuGet package version that was packed (including any prerelease suffix).'
+        value: ${{ jobs.build.outputs.version }}
 jobs:
   build:
 
     runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
 
     steps:
     - uses: actions/checkout@v3
@@ -25,18 +32,25 @@ jobs:
       run: dotnet restore
       working-directory: src
     - name: Set Version
+      id: set-version
       shell: pwsh
       run: |
         [xml]$xml = Get-Content -path  "${{github.workspace}}/version.props" -Raw
-        $version = $xml.Project.PropertyGroup.VersionPrefix;
+        $version = "$($xml.Project.PropertyGroup.VersionPrefix)".Trim();
+        $existingSuffix = "$($xml.Project.PropertyGroup.VersionSuffix)".Trim();
         $suffix = "${{ inputs.suffix }}";
         if(![string]::IsNullOrEmpty($suffix)){
           $ticks=(Get-Date).Ticks;
           $version= $version+"-"+$suffix+"."+$ticks
           $xml.Project.PropertyGroup.VersionSuffix = $suffix+"."+$ticks
-          Write-Host $version
-          [xml]$xml.Save("${{github.workspace}}/version.props")
+          $xml.Save("${{github.workspace}}/version.props")
         }
+        elseif(![string]::IsNullOrEmpty($existingSuffix)){
+          # version.props already carries a prerelease suffix (e.g. changesets pre mode) — keep it.
+          $version = $version+"-"+$existingSuffix
+        }
+        Write-Host "Package version: $version"
+        "version=$version" >> $env:GITHUB_OUTPUT
     - name: Build
       run: dotnet build --no-restore
       working-directory: src
