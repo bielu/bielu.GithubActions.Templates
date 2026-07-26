@@ -32,7 +32,7 @@ on:
       node-version:
         required: false
         type: string
-        default: '20.x'
+        default: '22.x'
       artifact-name:
         description: 'Name of the uploaded npm package artifact.'
         required: false

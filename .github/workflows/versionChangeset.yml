@@ -16,7 +16,7 @@ on:
       node-version:
         required: false
         type: string
-        default: '20.x'
+        default: '22.x'
       working-directory:
         description: 'Directory holding the changeset workspace root (package.json + .changeset).'
         required: false
