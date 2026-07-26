@@ -17,6 +17,11 @@ on:
       suffix:
         required: false
         type: string
+      artifact-name:
+        description: 'Name of the uploaded npm package artifact.'
+        required: false
+        type: string
+        default: 'Npm Build Output'
 jobs:
   build:
 
@@ -62,5 +67,5 @@ jobs:
     - name: Upload npm package as build artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Npm Build Output
+        name: ${{ inputs.artifact-name }}
         path: ./build.out/

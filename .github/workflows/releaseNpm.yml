@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: 'public'
+      artifact-name:
+        description: 'Name of the npm package artifact to download.'
+        required: false
+        type: string
+        default: 'Npm Build Output'
     secrets:
       NPM_TOKEN:
         # Deprecated: publishing uses npm trusted publishing (OIDC) and ignores this
@@ -43,7 +48,7 @@ jobs:
       # Download the npm package (.tgz) created by the build job
       - uses: actions/download-artifact@v4
         with:
-          name: Npm Build Output
+          name: ${{ inputs.artifact-name }}
           path: ${{ env.NpmDirectory }}
 
       # Install the requested Node.js version and configure the registry.

@@ -15,6 +15,11 @@ on:
       suffix:
         required: false
         type: string
+      artifact-name:
+        description: 'Name of the uploaded npm package artifact.'
+        required: false
+        type: string
+        default: 'Npm Build Output'
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
       # Runs a single command using the runners shell
@@ -24,3 +29,4 @@ jobs:
       working-directory: ${{ inputs.working-directory }}
       node-version: ${{ inputs.node-version }}
       suffix: ${{ inputs.suffix }}
+      artifact-name: ${{ inputs.artifact-name }}

@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: 'public'
+      artifact-name:
+        description: 'Name of the npm package artifact used by the build and publish jobs.'
+        required: false
+        type: string
+        default: 'Npm Build Output'
     outputs:
       nuget-version:
         description: 'The full NuGet package version that was built (including any prerelease suffix), from whichever build variant ran.'
@@ -92,6 +97,7 @@ jobs:
       working-directory: ${{ inputs.working-directory }}
       node-version: ${{ inputs.node-version }}
       suffix: ${{ inputs.suffix }}
+      artifact-name: ${{ inputs.artifact-name }}
 
   publish-npm:
     needs: [build-npm]
@@ -106,3 +112,4 @@ jobs:
       node-version: ${{ inputs.node-version }}
       registry-url: ${{ inputs.registry-url }}
       access: ${{ inputs.access }}
+      artifact-name: ${{ inputs.artifact-name }}

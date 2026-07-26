@@ -33,6 +33,11 @@ on:
         required: false
         type: string
         default: '20.x'
+      artifact-name:
+        description: 'Name of the uploaded npm package artifact.'
+        required: false
+        type: string
+        default: 'Npm Build Output'
 
 jobs:
   build-nuget-schema:
@@ -54,3 +59,4 @@ jobs:
       working-directory: ${{ inputs.working-directory }}
       node-version: ${{ inputs.node-version }}
       suffix: ${{ inputs.suffix }}
+      artifact-name: ${{ inputs.artifact-name }}
