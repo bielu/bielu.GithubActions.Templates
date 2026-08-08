@@ -43,6 +43,15 @@ const tag = args.get("tag") || "beta";
 // version). Its version is echoed under the extra `nuget` key so callers need not slugify a name.
 const nugetPackage = args.get("nuget-package") || "";
 
+// The tag lands inside a semver prerelease identifier and inside $GITHUB_OUTPUT lines, so anything
+// outside this set is rejected up front rather than producing an unparseable version or smuggling a
+// newline into the step's outputs.
+if (!/^[a-zA-Z0-9-]+$/.test(tag)) {
+  throw new Error(
+    `--tag must be a semver prerelease identifier ([A-Za-z0-9-]), got: ${JSON.stringify(tag)}`,
+  );
+}
+
 // `@changesets/get-release-plan` ships as CJS; the default export lands one level deep under ESM.
 const releasePlanOf = typeof getReleasePlan === "function" ? getReleasePlan : getReleasePlan.default;
 
@@ -82,15 +91,20 @@ for (const pkg of packages) {
   const version = `${base}-${tag}.${stamp}`;
   versions[name] = version;
   outputs.set(slugify(name), version);
-  if (name === nugetPackage) outputs.set("nuget", version);
   rows.push({ package: name, published: isPrivate ? "no (private)" : "yes", version, reason });
 }
 
-if (nugetPackage && !outputs.has("nuget")) {
-  throw new Error(
-    `--nuget-package=${nugetPackage} does not match any workspace package. Found: ` +
-      packages.map((p) => p.packageJson.name).join(", "),
-  );
+// Set the `nuget` alias here rather than inside the loop: a package whose slug is literally `nuget`
+// would otherwise occupy the key, and the check below would accept a --nuget-package that matched
+// nothing while emitting some other package's version under it.
+if (nugetPackage) {
+  if (!Object.hasOwn(versions, nugetPackage)) {
+    throw new Error(
+      `--nuget-package=${nugetPackage} does not match any workspace package. Found: ` +
+        Object.keys(versions).join(", "),
+    );
+  }
+  outputs.set("nuget", versions[nugetPackage]);
 }
 
 console.table(rows);

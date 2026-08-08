@@ -41,12 +41,30 @@ jobs:
     - name: Set Version
       id: set-version
       shell: pwsh
+      # Inputs go through the environment rather than `${{ }}` interpolation: expressions are pasted
+      # into the script before the shell parses it, so an input carrying shell metacharacters would
+      # otherwise run as code.
+      env:
+        INPUT_SUFFIX: ${{ inputs.suffix }}
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
         [xml]$xml = Get-Content -path  "${{github.workspace}}/version.props" -Raw
         $version = "$($xml.Project.PropertyGroup.VersionPrefix)".Trim();
-        $existingSuffix = "$($xml.Project.PropertyGroup.VersionSuffix)".Trim();
-        $suffix = "${{ inputs.suffix }}";
-        $explicit = "${{ inputs.version }}".Trim();
+        # <VersionSuffix> is optional in a hand-written version.props, but every branch below that
+        # writes a suffix needs the element to exist. Add it once up front; nothing reaches disk
+        # unless a branch calls Save().
+        $suffixNode = $xml.SelectSingleNode("//VersionSuffix")
+        if($null -eq $suffixNode){
+          $propertyGroup = $xml.SelectSingleNode("//PropertyGroup[VersionPrefix]")
+          if($null -eq $propertyGroup){
+            throw "version.props has no <PropertyGroup> containing <VersionPrefix>."
+          }
+          $suffixNode = $xml.CreateElement("VersionSuffix")
+          $propertyGroup.AppendChild($suffixNode) | Out-Null
+        }
+        $existingSuffix = "$($suffixNode.InnerText)".Trim();
+        $suffix = "$env:INPUT_SUFFIX";
+        $explicit = "$env:INPUT_VERSION".Trim();
         if(![string]::IsNullOrEmpty($explicit)){
           # The caller computed the version (e.g. the next version implied by pending changesets,
           # plus a prerelease stamp). Take it verbatim and split it back into the prefix/suffix pair
@@ -54,16 +72,14 @@ jobs:
           $dash = $explicit.IndexOf("-")
           if($dash -lt 0){
             $xml.Project.PropertyGroup.VersionPrefix = $explicit
-            # Assigning "" would leave the element non-self-closing, and Save() then indents a
-            # newline into it — MSBuild would read that whitespace as the suffix. Collapse it to
-            # <VersionSuffix /> instead.
-            $suffixNode = $xml.Project.PropertyGroup.SelectSingleNode("VersionSuffix")
+            # Assigning "" leaves the element non-self-closing, and Save() then indents a newline
+            # into it — MSBuild would read that whitespace as the suffix. Collapse it instead.
             $suffixNode.InnerText = ""
             $suffixNode.IsEmpty = $true
           }
           else{
             $xml.Project.PropertyGroup.VersionPrefix = $explicit.Substring(0, $dash)
-            $xml.Project.PropertyGroup.VersionSuffix = $explicit.Substring($dash + 1)
+            $suffixNode.InnerText = $explicit.Substring($dash + 1)
           }
           $xml.Save("${{github.workspace}}/version.props")
           $version = $explicit
@@ -71,7 +87,7 @@ jobs:
         elseif(![string]::IsNullOrEmpty($suffix)){
           $ticks=(Get-Date).Ticks;
           $version= $version+"-"+$suffix+"."+$ticks
-          $xml.Project.PropertyGroup.VersionSuffix = $suffix+"."+$ticks
+          $suffixNode.InnerText = $suffix+"."+$ticks
           $xml.Save("${{github.workspace}}/version.props")
         }
         elseif(![string]::IsNullOrEmpty($existingSuffix)){
