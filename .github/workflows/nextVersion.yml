@@ -99,10 +99,17 @@ jobs:
         run: npm ci
         working-directory: .bielu-templates/scripts/next-version
 
+      # Inputs go through the environment rather than `${{ }}` interpolation: expressions are pasted
+      # into the script before the shell parses it, so an input carrying shell metacharacters would
+      # otherwise run as code.
       - name: Compute the next prerelease versions
         id: compute
+        env:
+          INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_NUGET_PACKAGE: ${{ inputs.nuget-package }}
         run: >-
           node .bielu-templates/scripts/next-version/next-version.mjs
-          --cwd="${{ inputs.working-directory }}"
-          --tag="${{ inputs.tag }}"
-          --nuget-package="${{ inputs.nuget-package }}"
+          --cwd="$INPUT_WORKING_DIRECTORY"
+          --tag="$INPUT_TAG"
+          --nuget-package="$INPUT_NUGET_PACKAGE"

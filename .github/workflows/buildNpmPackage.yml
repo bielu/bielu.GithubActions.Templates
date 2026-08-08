@@ -50,12 +50,18 @@ jobs:
     - name: Install dependencies
       run: npm ci
       working-directory: ${{ inputs.working-directory }}
+    # Inputs go through the environment rather than `${{ }}` interpolation: expressions are pasted
+    # into the script before the shell parses it, so an input carrying shell metacharacters would
+    # otherwise run as code.
     - name: Set version
       id: set-version
       shell: pwsh
+      env:
+        INPUT_SUFFIX: ${{ inputs.suffix }}
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
-        $suffix = "${{ inputs.suffix }}";
-        $explicit = "${{ inputs.version }}".Trim();
+        $suffix = "$env:INPUT_SUFFIX";
+        $explicit = "$env:INPUT_VERSION".Trim();
         if(![string]::IsNullOrEmpty($explicit)){
           # The caller computed the version (e.g. the next version implied by pending changesets,
           # plus a prerelease stamp). Take it verbatim.
