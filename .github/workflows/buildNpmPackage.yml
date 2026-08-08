@@ -17,15 +17,29 @@ on:
       suffix:
         required: false
         type: string
+      version:
+        description: >-
+          Explicit full package version to pack (e.g. 1.1.0-beta.20260808120000). When set it wins
+          over both package.json and `suffix` — use it when the caller already knows the version,
+          for instance one computed from pending changesets.
+        required: false
+        type: string
       artifact-name:
         description: 'Name of the uploaded npm package artifact.'
         required: false
         type: string
         default: 'Npm Build Output'
+    outputs:
+      version:
+        description: 'The full npm package version that was packed (including any prerelease suffix).'
+        value: ${{ jobs.build.outputs.version }}
 jobs:
   build:
 
     runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
 
     steps:
     - uses: actions/checkout@v4
@@ -36,16 +50,27 @@ jobs:
     - name: Install dependencies
       run: npm ci
       working-directory: ${{ inputs.working-directory }}
-    - name: Set prerelease version
+    - name: Set version
+      id: set-version
       shell: pwsh
       run: |
         $suffix = "${{ inputs.suffix }}";
-        if(![string]::IsNullOrEmpty($suffix)){
+        $explicit = "${{ inputs.version }}".Trim();
+        if(![string]::IsNullOrEmpty($explicit)){
+          # The caller computed the version (e.g. the next version implied by pending changesets,
+          # plus a prerelease stamp). Take it verbatim.
+          Write-Host "Applying explicit version: $explicit"
+          npm version $explicit --no-git-tag-version --allow-same-version
+        }
+        elseif(![string]::IsNullOrEmpty($suffix)){
           $ticks=(Get-Date).Ticks;
           $preid = $suffix + "." + $ticks
           Write-Host "Applying prerelease id: $preid"
           npm version prerelease --preid=$preid --no-git-tag-version
         }
+        $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+        Write-Host "Package version: $version"
+        "version=$version" >> $env:GITHUB_OUTPUT
       working-directory: ${{ inputs.working-directory }}
     - name: Lint
       run: npm run lint --if-present

@@ -1,3 +1,7 @@
+### Node
+# Installed by nextVersion.yml at run time; scripts/next-version/package-lock.json is committed.
+node_modules/
+
 ### Windows
 # Windows thumbnail cache files
 Thumbs.db

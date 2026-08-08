@@ -1,0 +1,108 @@
+# Reusable "what should the next prerelease be numbered?" workflow.
+#
+# Call this before a prerelease (beta) build so the build templates can be handed an explicit
+# version instead of stamping a suffix onto whatever the repository currently carries. That matters
+# straight after a stable release: version.props/package.json then hold the version that just
+# shipped, so a stamped `1.0.0-beta.<stamp>` sorts BELOW the 1.0.0 already on the registry and reads
+# as a downgrade. This derives the version from the pending changesets instead, so the first beta
+# after 1.0.0 is `1.1.0-beta.<stamp>` for a pending minor, `1.0.1-beta.<stamp>` for a pending patch.
+#
+# Packages with no pending changeset get a patch bump, so their prerelease still sits above their
+# own last stable release.
+#
+# Feed the outputs to release.yml's `nuget-version-override` / `npm-version-override`:
+#
+#   jobs:
+#     nextVersion:
+#       uses: bielu/bielu.GithubActions.Templates/.github/workflows/nextVersion.yml@main
+#       with:
+#         nuget-package: my-synthetic-nuget-package
+#     releaseBeta:
+#       needs: nextVersion
+#       uses: bielu/bielu.GithubActions.Templates/.github/workflows/release.yml@main
+#       with:
+#         nuget-version-override: ${{ needs.nextVersion.outputs.nuget }}
+#         npm-version-override: ${{ fromJSON(needs.nextVersion.outputs.versions)['@scope/pkg'] }}
+
+name: Next version (changesets)
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Directory holding the changeset workspace root (package.json + .changeset).'
+        required: false
+        type: string
+        default: '.'
+      tag:
+        description: 'Prerelease tag to stamp, e.g. `beta` -> 1.1.0-beta.20260808120000.'
+        required: false
+        type: string
+        default: 'beta'
+      nuget-package:
+        description: >-
+          Name of the workspace package standing in for the NuGet version (the synthetic package a
+          changeset-driven .NET repo bumps). Its version is echoed as the `nuget` output. Leave
+          empty in npm-only repositories.
+        required: false
+        type: string
+      node-version:
+        required: false
+        type: string
+        default: '22.x'
+      templates-ref:
+        description: 'Ref of this templates repository to take the version script from.'
+        required: false
+        type: string
+        default: 'main'
+    outputs:
+      versions:
+        description: >-
+          JSON object mapping every workspace package name to its computed version. Read it with
+          fromJSON(...)['@scope/name'] — package names cannot be workflow outputs on their own.
+        value: ${{ jobs.next-version.outputs.versions }}
+      nuget:
+        description: 'Computed version of the `nuget-package` input, when one was given.'
+        value: ${{ jobs.next-version.outputs.nuget }}
+
+jobs:
+  next-version:
+    runs-on: ubuntu-latest
+
+    outputs:
+      versions: ${{ steps.compute.outputs.versions }}
+      nuget: ${{ steps.compute.outputs.nuget }}
+
+    steps:
+      # The default checkout is the *calling* repository at the calling SHA — that is the workspace
+      # whose changesets we read.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # The script and its dependencies live here, not in the caller, so the caller needs nothing
+      # installed and is never mutated: changesets is asked for a release plan by path.
+      - name: Check out the version script
+        uses: actions/checkout@v4
+        with:
+          repository: bielu/bielu.GithubActions.Templates
+          ref: ${{ inputs.templates-ref }}
+          path: .bielu-templates
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install
+        run: npm ci
+        working-directory: .bielu-templates/scripts/next-version
+
+      - name: Compute the next prerelease versions
+        id: compute
+        run: >-
+          node .bielu-templates/scripts/next-version/next-version.mjs
+          --cwd="${{ inputs.working-directory }}"
+          --tag="${{ inputs.tag }}"
+          --nuget-package="${{ inputs.nuget-package }}"
