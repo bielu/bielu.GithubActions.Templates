@@ -9,6 +9,13 @@ on:
       suffix:
         required: false
         type: string
+      version:
+        description: >-
+          Explicit full package version to pack (e.g. 1.1.0-beta.20260808120000). When set it wins
+          over both version.props and `suffix` — use it when the caller already knows the version,
+          for instance one computed from pending changesets.
+        required: false
+        type: string
     outputs:
       version:
         description: 'The full NuGet package version that was packed (including any prerelease suffix).'
@@ -39,7 +46,29 @@ jobs:
         $version = "$($xml.Project.PropertyGroup.VersionPrefix)".Trim();
         $existingSuffix = "$($xml.Project.PropertyGroup.VersionSuffix)".Trim();
         $suffix = "${{ inputs.suffix }}";
-        if(![string]::IsNullOrEmpty($suffix)){
+        $explicit = "${{ inputs.version }}".Trim();
+        if(![string]::IsNullOrEmpty($explicit)){
+          # The caller computed the version (e.g. the next version implied by pending changesets,
+          # plus a prerelease stamp). Take it verbatim and split it back into the prefix/suffix pair
+          # the .NET SDK recombines at pack time.
+          $dash = $explicit.IndexOf("-")
+          if($dash -lt 0){
+            $xml.Project.PropertyGroup.VersionPrefix = $explicit
+            # Assigning "" would leave the element non-self-closing, and Save() then indents a
+            # newline into it — MSBuild would read that whitespace as the suffix. Collapse it to
+            # <VersionSuffix /> instead.
+            $suffixNode = $xml.Project.PropertyGroup.SelectSingleNode("VersionSuffix")
+            $suffixNode.InnerText = ""
+            $suffixNode.IsEmpty = $true
+          }
+          else{
+            $xml.Project.PropertyGroup.VersionPrefix = $explicit.Substring(0, $dash)
+            $xml.Project.PropertyGroup.VersionSuffix = $explicit.Substring($dash + 1)
+          }
+          $xml.Save("${{github.workspace}}/version.props")
+          $version = $explicit
+        }
+        elseif(![string]::IsNullOrEmpty($suffix)){
           $ticks=(Get-Date).Ticks;
           $version= $version+"-"+$suffix+"."+$ticks
           $xml.Project.PropertyGroup.VersionSuffix = $suffix+"."+$ticks
