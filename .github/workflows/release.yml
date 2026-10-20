@@ -32,6 +32,11 @@ on:
           unreleased changesets) rather than the last released one.
         required: false
         type: string
+      nuget-user:
+        description: 'nuget.org profile name (not email) for trusted publishing; empty uses NUGET_APIKEY.'
+        required: false
+        type: string
+        default: 'bielu'
       # ---- npm ----
       publish-npm:
         description: 'Build and publish the npm package.'
@@ -104,6 +109,13 @@ jobs:
       always() && !cancelled() && inputs.publish-nuget
       && (needs.build-nuget-schema.result == 'success' || needs.build-nuget-noschema.result == 'success')
     uses: bielu/bielu.GithubActions.Templates/.github/workflows/releaseNuget.yml@main
+    # NuGet publishes via trusted publishing (OIDC). Safe to require here: publish-npm below
+    # already makes every caller grant `id-token: write`.
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      nuget-user: ${{ inputs.nuget-user }}
     secrets:
       NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
 

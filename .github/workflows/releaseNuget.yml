@@ -4,14 +4,25 @@
 name: Publish
 on:
   workflow_call:
+    inputs:
+      nuget-user:
+        description: >-
+          nuget.org profile name (not email) to publish with via trusted publishing (OIDC).
+          Defaults to `bielu`. The caller must grant `id-token: write`; when it does not, or when
+          this is set to an empty string, the NUGET_APIKEY secret is used instead.
+        required: false
+        type: string
+        default: 'bielu'
     secrets:
       NUGET_APIKEY:
-        required: true
+        # Deprecated: kept as a fallback for callers that have not granted `id-token: write`.
+        required: false
 env:
   NuGetDirectory: ${{ github.workspace}}/nuget
 jobs:
   Publish:
-    
+    # No job-level `permissions:` on purpose: declaring `id-token: write` here would fail every
+    # caller that does not grant it. The job inherits the caller's grant instead.
     if:  github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -24,10 +35,37 @@ jobs:
       # Install the .NET SDK indicated in the global.json file
       - name: Setup .NET Core
         uses: actions/setup-dotnet@v4
+
+      # The runner only exposes the OIDC request URL when the caller granted `id-token: write`.
+      - name: Check OIDC availability
+        id: oidc
+        run: |
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::id-token: write not granted; falling back to the NUGET_APIKEY secret."
+          fi
+
+      # Exchange the GitHub OIDC token for a short-lived nuget.org API key. Needs a trusted
+      # publishing policy on nuget.org for this repository and the calling workflow file.
+      # continue-on-error keeps repos without a policy yet publishing via NUGET_APIKEY.
+      - name: NuGet login (trusted publishing)
+        id: login
+        if: inputs.nuget-user != '' && steps.oidc.outputs.available == 'true'
+        continue-on-error: true
+        uses: NuGet/login@v1
+        with:
+          user: ${{ inputs.nuget-user }}
   
       # Publish all NuGet packages to NuGet.org
       # Use --skip-duplicate to prevent errors if a package with the same version already exists.
       # If you retry a failed workflow, already published packages will be skipped without error.
       - name: Publish NuGet package
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY || secrets.NUGET_APIKEY }}
         run: |
-          dotnet nuget push "**/*.nupkg" --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::No NuGet API key: grant 'id-token: write' for trusted publishing or pass NUGET_APIKEY."
+            exit 1
+          fi
+          dotnet nuget push "**/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
