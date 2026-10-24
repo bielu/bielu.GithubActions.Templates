@@ -20,6 +20,16 @@ on:
         required: false
         type: boolean
         default: true
+      push-nuget:
+        description: >-
+          Push the built NuGet package to nuget.org. Set to false to only build it (the
+          "Nuget Build Output" artifact and the nuget-version output stay available) and push it
+          from a job in the calling workflow with the `.github/actions/publish-nuget` action —
+          required for nuget.org trusted publishing, which rejects tokens minted inside this
+          repository's reusable workflows.
+        required: false
+        type: boolean
+        default: true
       generate-schema:
         description: 'Use the schema-generating NuGet build (buildNugetPackage) instead of the plain one (buildNugetPackageNoSchema).'
         required: false
@@ -106,11 +116,12 @@ jobs:
     needs: [build-nuget-schema, build-nuget-noschema]
     # Run once whichever NuGet build variant succeeded; never on a PR.
     if: >-
-      always() && !cancelled() && inputs.publish-nuget
+      always() && !cancelled() && inputs.publish-nuget && inputs.push-nuget
       && (needs.build-nuget-schema.result == 'success' || needs.build-nuget-noschema.result == 'success')
     uses: bielu/bielu.GithubActions.Templates/.github/workflows/releaseNuget.yml@main
-    # NuGet publishes via trusted publishing (OIDC). Safe to require here: publish-npm below
-    # already makes every caller grant `id-token: write`.
+    # Only the NUGET_APIKEY secret works here; for trusted publishing set push-nuget: false (see
+    # releaseNuget.yml). `id-token: write` is safe to require: publish-npm below already makes every
+    # caller grant it.
     permissions:
       id-token: write
       contents: read
