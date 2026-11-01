@@ -105,13 +105,33 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         directories: "."
       if: github.event_name == 'pull_request'
+    # The .NET 10 SDK picks the test runner from global.json ("test": { "runner": ... }) and refuses
+    # VSTest arguments under Microsoft Testing Platform, so the arguments have to follow that setting.
+    # Repositories that do not set it keep the VSTest invocation they always had.
+    #
+    # The Microsoft Testing Platform arguments assume xunit.v3 (--report-xunit-trx) and coverlet.MTP
+    # (--coverlet), the combination used across the bielu repositories that opt in.
     - name: Test run
-      run: dotnet test --configuration Release --logger trx --collect:"XPlat Code Coverage"
       working-directory: src
+      run: |
+        RUNNER=""
+        for config in global.json ../global.json; do
+          if [ -f "$config" ]; then
+            RUNNER=$(jq -r '.test.runner // ""' "$config" 2>/dev/null || true)
+            break
+          fi
+        done
+        if [ "$RUNNER" = "Microsoft.Testing.Platform" ]; then
+          dotnet test --configuration Release --report-xunit-trx --coverlet --coverlet-output-format cobertura
+        else
+          dotnet test --configuration Release --logger trx --collect:"XPlat Code Coverage"
+        fi
+    # VSTest writes TestResults/<guid>/coverage.cobertura.xml; coverlet.MTP writes
+    # TestResults/coverage.cobertura.<timestamp>.xml.
     - name: Check for coverage files
       id: check_coverage
       run: |
-        if find . -path '*/TestResults/*/coverage.cobertura.xml' | grep -q .; then
+        if find . -path '*/TestResults/*' -name 'coverage.cobertura*.xml' | grep -q .; then
           echo "has_coverage=true" >> "$GITHUB_OUTPUT"
         else
           echo "has_coverage=false" >> "$GITHUB_OUTPUT"
@@ -120,7 +140,7 @@ jobs:
       if: steps.check_coverage.outputs.has_coverage == 'true'
       uses: danielpalme/ReportGenerator-GitHub-Action@5.5.1
       with:
-        reports: 'src/**/TestResults/*/coverage.cobertura.xml'
+        reports: 'src/**/TestResults/**/coverage.cobertura*.xml'
         targetdir: 'coverage-report'
         reporttypes: 'HtmlInline;MarkdownSummaryGithub'
         verbosity: 'Info'
