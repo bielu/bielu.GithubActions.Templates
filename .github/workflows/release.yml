@@ -9,6 +9,14 @@ name: Release (NuGet + npm)
 on:
   workflow_call:
     inputs:
+      dotnet-version:
+        description: >-
+          .NET SDK version(s) to install, passed to actions/setup-dotnet. Accepts several versions on
+          separate lines (e.g. "10.0.x\n11.0.x") so a multi-targeting repository gets every SDK and
+          runtime its build and tests need. A global.json in the repository still selects the SDK.
+        required: false
+        type: string
+        default: '10.0.x'
       # ---- shared ----
       suffix:
         description: 'Prerelease suffix (empty for a stable release).'
@@ -102,6 +110,7 @@ jobs:
     if: inputs.publish-nuget && inputs.generate-schema
     uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackage.yml@main
     with:
+      dotnet-version: ${{ inputs.dotnet-version }}
       suffix: ${{ inputs.suffix }}
       version: ${{ inputs.nuget-version-override }}
 
@@ -109,6 +118,7 @@ jobs:
     if: inputs.publish-nuget && !inputs.generate-schema
     uses: bielu/bielu.GithubActions.Templates/.github/workflows/buildNugetPackageNoSchema.yml@main
     with:
+      dotnet-version: ${{ inputs.dotnet-version }}
       suffix: ${{ inputs.suffix }}
       version: ${{ inputs.nuget-version-override }}
 
