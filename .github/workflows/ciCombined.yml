@@ -18,6 +18,13 @@ on:
       suffix:
         required: false
         type: string
+      minimum-line-coverage:
+        description: >-
+          Fail the build when total line coverage, merged across every test project's Cobertura report,
+          is below this percentage (e.g. 85). 0, the default, only reports coverage.
+        required: false
+        type: number
+        default: 0
       build-nuget:
         description: 'Build the NuGet package.'
         required: false
@@ -54,6 +61,7 @@ jobs:
     with:
       dotnet-version: ${{ inputs.dotnet-version }}
       suffix: ${{ inputs.suffix }}
+      minimum-line-coverage: ${{ inputs.minimum-line-coverage }}
 
   build-nuget-noschema:
     if: inputs.build-nuget && !inputs.generate-schema
@@ -61,6 +69,7 @@ jobs:
     with:
       dotnet-version: ${{ inputs.dotnet-version }}
       suffix: ${{ inputs.suffix }}
+      minimum-line-coverage: ${{ inputs.minimum-line-coverage }}
 
   build-npm:
     if: inputs.build-npm
