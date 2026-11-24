@@ -24,6 +24,13 @@ on:
           for instance one computed from pending changesets.
         required: false
         type: string
+      minimum-line-coverage:
+        description: >-
+          Fail the build when total line coverage, merged across every test project's Cobertura report,
+          is below this percentage (e.g. 85). 0, the default, only reports coverage.
+        required: false
+        type: number
+        default: 0
     outputs:
       version:
         description: 'The full NuGet package version that was packed (including any prerelease suffix).'
@@ -135,7 +142,8 @@ jobs:
           dotnet test --configuration Release --logger trx --collect:"XPlat Code Coverage"
         fi
     # VSTest writes TestResults/<guid>/coverage.cobertura.xml; coverlet.MTP writes
-    # TestResults/coverage.cobertura.<timestamp>.xml.
+    # TestResults/coverage.cobertura.<timestamp>.xml. Tests run from src/, but a test project may live
+    # outside it (e.g. test/), and its results are written next to that project, so search the whole repository.
     - name: Check for coverage files
       id: check_coverage
       run: |
@@ -148,9 +156,9 @@ jobs:
       if: steps.check_coverage.outputs.has_coverage == 'true'
       uses: danielpalme/ReportGenerator-GitHub-Action@5.5.1
       with:
-        reports: 'src/**/TestResults/**/coverage.cobertura*.xml'
+        reports: '**/TestResults/**/coverage.cobertura*.xml'
         targetdir: 'coverage-report'
-        reporttypes: 'HtmlInline;MarkdownSummaryGithub'
+        reporttypes: 'HtmlInline;MarkdownSummaryGithub;JsonSummary'
         verbosity: 'Info'
     
     - name: Upload Coverage Report
@@ -166,6 +174,22 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER: ${{ github.event.number }}
+    - name: Enforce minimum line coverage
+      if: inputs.minimum-line-coverage > 0
+      env:
+        MINIMUM: ${{ inputs.minimum-line-coverage }}
+        HAS_COVERAGE: ${{ steps.check_coverage.outputs.has_coverage }}
+      run: |
+        if [ "$HAS_COVERAGE" != "true" ]; then
+          echo "::error::A minimum line coverage of $MINIMUM% is required, but the tests wrote no coverage report."
+          exit 1
+        fi
+        ACTUAL=$(jq -r '.summary.linecoverage' coverage-report/Summary.json)
+        echo "Line coverage: $ACTUAL% (minimum: $MINIMUM%)" | tee -a "$GITHUB_STEP_SUMMARY"
+        if awk -v actual="$ACTUAL" -v minimum="$MINIMUM" 'BEGIN { exit !(actual < minimum) }'; then
+          echo "::error::Line coverage $ACTUAL% is below the required $MINIMUM%."
+          exit 1
+        fi
     - name: Generate Schema
       run: dotnet run --project ./SchemaGenerator/SchemaGenerator.csproj
       working-directory: src
