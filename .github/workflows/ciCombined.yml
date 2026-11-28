@@ -25,6 +25,16 @@ on:
         required: false
         type: number
         default: 0
+      npm-bundles:
+        description: >-
+          Prebuilt npm bundles to embed instead of building them during dotnet build: one
+          "artifact-name=assets-dir" pair per line, where artifact-name is an artifact of this run holding
+          an `npm pack` tarball and assets-dir is the npm package folder, relative to the repository root.
+          Each tarball's dist/ is extracted into assets-dir/dist and touched, so MSBuild finds the bundle
+          newer than its sources and skips the npm build. Empty (the default) changes nothing.
+        required: false
+        type: string
+        default: ''
       build-nuget:
         description: 'Build the NuGet package.'
         required: false
@@ -62,6 +72,7 @@ jobs:
       dotnet-version: ${{ inputs.dotnet-version }}
       suffix: ${{ inputs.suffix }}
       minimum-line-coverage: ${{ inputs.minimum-line-coverage }}
+      npm-bundles: ${{ inputs.npm-bundles }}
 
   build-nuget-noschema:
     if: inputs.build-nuget && !inputs.generate-schema
@@ -70,6 +81,7 @@ jobs:
       dotnet-version: ${{ inputs.dotnet-version }}
       suffix: ${{ inputs.suffix }}
       minimum-line-coverage: ${{ inputs.minimum-line-coverage }}
+      npm-bundles: ${{ inputs.npm-bundles }}
 
   build-npm:
     if: inputs.build-npm

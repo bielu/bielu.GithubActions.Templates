@@ -24,6 +24,16 @@ on:
           for instance one computed from pending changesets.
         required: false
         type: string
+      npm-bundles:
+        description: >-
+          Prebuilt npm bundles to embed instead of building them during dotnet build: one
+          "artifact-name=assets-dir" pair per line, where artifact-name is an artifact of this run holding
+          an `npm pack` tarball and assets-dir is the npm package folder, relative to the repository root.
+          Each tarball's dist/ is extracted into assets-dir/dist and touched, so MSBuild finds the bundle
+          newer than its sources and skips the npm build. Empty (the default) changes nothing.
+        required: false
+        type: string
+        default: ''
       minimum-line-coverage:
         description: >-
           Fail the build when total line coverage, merged across every test project's Cobertura report,
@@ -111,6 +121,43 @@ jobs:
         }
         Write-Host "Package version: $version"
         "version=$version" >> $env:GITHUB_OUTPUT
+    # Prebuilt npm bundles (inputs.npm-bundles): the NuGet package embeds the exact bytes an npm job of
+    # this run built and packed, instead of building them a second time.
+    - name: Download prebuilt npm bundles
+      if: inputs.npm-bundles != ''
+      uses: actions/download-artifact@v4
+      with:
+        path: ${{ runner.temp }}/npm-bundles
+    - name: Unpack prebuilt npm bundles
+      if: inputs.npm-bundles != ''
+      env:
+        NPM_BUNDLES: ${{ inputs.npm-bundles }}
+        BUNDLES_DIR: ${{ runner.temp }}/npm-bundles
+      run: |
+        set -euo pipefail
+        while IFS= read -r line || [ -n "$line" ]; do
+          line="${line//[[:space:]]/}"
+          [ -z "$line" ] && continue
+          name="${line%%=*}"
+          dir="${line#*=}"
+          if [ "$name" = "$line" ] || [ -z "$name" ] || [ -z "$dir" ]; then
+            echo "::error::npm-bundles entry '$line' is not artifact-name=assets-dir."
+            exit 1
+          fi
+          shopt -s nullglob
+          tarballs=("$BUNDLES_DIR/$name"/*.tgz)
+          shopt -u nullglob
+          if [ "${#tarballs[@]}" -ne 1 ]; then
+            echo "::error::Artifact '$name' should hold one npm pack tarball; found ${#tarballs[@]}."
+            exit 1
+          fi
+          mkdir -p "$dir"
+          tar -xzf "${tarballs[0]}" -C "$dir" --strip-components=1 package/dist
+          # npm pack stamps every entry with a fixed 1985 mtime: without this, the bundle looks older
+          # than its checked-out sources and MSBuild rebuilds it.
+          find "$dir/dist" -type f -exec touch {} +
+          echo "Embedding $name: $(find "$dir/dist" -type f | wc -l) files in $dir/dist"
+        done <<< "$NPM_BUNDLES"
     - name: Build
       run: dotnet build --configuration Release --no-restore
       working-directory: src
